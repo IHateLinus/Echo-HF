@@ -1,0 +1,326 @@
+<!-- Echo-HF risk calculator. Copyright (c) 2026 the Echo-HF study authors. Licensed under the Apache License, Version 2.0 (see LICENSE in the repository). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo-HF Risk Calculator</title>
+<style>
+  :root{
+    --ink:#12232e; --paper:#f6f4ee; --line:#d8d2c4;
+    --accent:#0b6e6e; --accent2:#c0532b;
+    --vlow:#2166ac; --low:#67a9cf; --med:#e8c33c; --high:#ef8a62; --vhigh:#b2182b;
+    --muted:#6b6459;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    background:var(--paper); color:var(--ink); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:32px 24px 80px}
+  header{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:8px}
+  .kicker{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
+    letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  h1{font-size:40px;line-height:1.05;font-weight:600;margin:6px 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:16px;max-width:60ch}
+  .layout{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:34px}
+  @media(max-width:760px){.layout{grid-template-columns:1fr}}
+  .field{margin-bottom:20px}
+  label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
+  label .unit{font-weight:400;color:var(--muted)}
+  input[type=number]{
+    width:100%;padding:11px 12px;font-size:17px;font-family:inherit;
+    border:1.5px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);
+  }
+  input:focus{outline:none;border-color:var(--accent)}
+  .hint{font-size:12px;color:var(--muted);margin-top:3px}
+  .seg{display:flex;gap:0;border:1.5px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{flex:1;padding:10px;border:none;background:#fff;font-family:inherit;
+    font-size:15px;cursor:pointer;color:var(--ink)}
+  .seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+  .go{width:100%;padding:14px;font-size:17px;font-family:inherit;font-weight:600;
+    background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;
+    margin-top:6px;letter-spacing:.01em}
+  .go:hover{background:#095c5c}
+  .result{border:1.5px solid var(--line);border-radius:12px;padding:24px;background:#fff;
+    position:sticky;top:24px}
+  .result.empty{display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--muted);min-height:320px;font-style:italic}
+  .tier{font-size:13px;font-family:ui-monospace,monospace;letter-spacing:.12em;
+    text-transform:uppercase;font-weight:700}
+  .riskval{font-size:56px;font-weight:600;line-height:1;margin:8px 0 2px;letter-spacing:-.02em}
+  .riskci{color:var(--muted);font-size:15px;margin-bottom:16px}
+  .bar{height:14px;border-radius:7px;background:linear-gradient(90deg,
+    var(--vlow),var(--low),var(--med),var(--high),var(--vhigh));position:relative;margin:20px 0 6px}
+  .bar .mk{position:absolute;top:-5px;width:3px;height:24px;background:var(--ink);border-radius:2px}
+  .scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);
+    font-family:ui-monospace,monospace}
+  .interp{margin-top:18px;font-size:15px;border-top:1px solid var(--line);padding-top:16px}
+  .disc{margin-top:28px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);
+    padding-top:16px;line-height:1.5}
+  .modelnote{margin-top:14px;padding:10px 12px;border-left:3px solid var(--accent2);
+    background:#faf3ee;font-size:12.5px;color:#7a3d22}
+  code{font-family:ui-monospace,monospace;font-size:12px;background:#efece3;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Presymptomatic heart failure &middot; risk stratification</div>
+    <h1>Echo-HF</h1>
+  </header>
+  <p class="sub">Individualized 5-year risk of progression to symptomatic heart failure,
+     estimated from five variables routinely present in a standard echocardiogram report.</p>
+
+  <div class="layout">
+    <form id="form" autocomplete="off">
+      <div class="field">
+        <label for="age">Age <span class="unit">years</span></label>
+        <input type="number" id="age" min="18" max="110" step="1" placeholder="e.g. 64">
+      </div>
+      <div class="field">
+        <label for="lvef">LV ejection fraction (LVEF) <span class="unit">%</span></label>
+        <input type="number" id="lvef" min="5" max="85" step="1" placeholder="e.g. 60">
+      </div>
+      <div class="field">
+        <label for="gls">Global longitudinal strain (GLS) <span class="unit">%, negative</span></label>
+        <input type="number" id="gls" min="-30" max="0" step="0.1" placeholder="e.g. -18.5">
+        <div class="hint">Enter as a negative value (more negative = better function).</div>
+      </div>
+      <div class="field">
+        <label for="lvmi">LV mass index (LVMI) <span class="unit">g/m&sup2;</span></label>
+        <input type="number" id="lvmi" min="30" max="300" step="1" placeholder="e.g. 95">
+      </div>
+      <div class="field">
+        <label for="la">Left atrial diameter (LA) <span class="unit">mm</span></label>
+        <input type="number" id="la" min="15" max="80" step="1" placeholder="e.g. 38">
+        <div class="hint">Use the same LA measure your lab reports (diameter, mm).</div>
+      </div>
+      <button type="submit" class="go">Calculate 5-year risk</button>
+    </form>
+
+    <div id="result" class="result empty">
+      Enter the five values and select <em>Calculate</em> to see the
+      estimated 5-year risk and risk tier.
+    </div>
+  </div>
+
+  <div class="disc">
+    <strong>Intended use &amp; limitations.</strong> Echo-HF estimates the 5-year probability of
+    progression to symptomatic heart failure among individuals <em>without</em> current symptomatic HF,
+    using variables from a standard transthoracic echocardiogram. It is a research tool for risk
+    stratification and is <strong>not</strong> a diagnostic device; it does not establish that acting on
+    the estimate improves outcomes. Estimates are least reliable at the extremes of the score range and in
+    populations that differ substantially from the development (KNUH) and validation (ARIC) cohorts.
+    Clinical decisions remain the responsibility of the treating clinician.
+    <div class="modelnote">
+      <strong>Model provenance:</strong> this calculator runs the trained Echo-HF XGBoost model
+      (100 depth-1 trees) exactly, embedded directly in this page — no server, no external library.
+      The absolute-risk mapping uses the Cox recalibration fitted on the KNUH cohort.
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// Echo-HF scoring
+// ----------------------------------------------------------------------------
+// REPLACE the body of scoreEchoHF() with your exported model.
+// The function must return the raw Echo-HF score in [0,1] (the XGBoost output).
+// riskFromScore() then maps that score to absolute 5-year risk via the Cox
+// recalibration you fit on KNUH (baseline hazard). Fill in BASELINE_S0 and BETA
+// from your recalibration; the placeholder values are illustrative only.
+// ============================================================================
+
+// ---- Cox recalibration params (from the KNUH fit) ----
+const BETA = 1.094;            // lp coefficient from Cox recalibration (verified 2026-09-05)
+const BASELINE_S0_5YR = 0.964169; // FIXED 2026-09-05: S0(1825d) at lp=0. Prior value 0.982933 was the lifelines baseline at the MEAN lp (a centering error) and understated absolute risk ~2x.
+const EPS = 1e-4;
+
+// ============================================================================
+// REAL Echo-HF model: exact XGBoost inference (100 depth-1 stumps, binary:logistic)
+// Extracted from EchoHF_xgb.json and verified to reproduce xgboost.predict to 1e-7.
+// Feature order: ['age','AVG','LA','LVMI','LVEF']   (AVG = global longitudinal strain)
+// ============================================================================
+const FEATS = ["age", "AVG", "LA", "LVMI", "LVEF"];
+const BASE_MARGIN = 0.0000000000;
+// [featureIndex, threshold, leftLeaf(x<thr), rightLeaf(x>=thr), defaultLeft(missing)]
+const STUMPS = [
+  [0, 70, -0.06596438, 0.086408935, false],
+  [0, 71, -0.056377526, 0.082310125, false],
+  [1, -13.9, -0.041105103, 0.09629618, false],
+  [0, 70, -0.05372098, 0.07062333, false],
+  [1, -15.7, -0.055671215, 0.059665114, false],
+  [0, 73, -0.04060567, 0.076631404, false],
+  [3, 102.0243, -0.038464, 0.07810066, false],
+  [1, -13.9, -0.03356347, 0.07918993, false],
+  [0, 76, -0.029513016, 0.08847157, false],
+  [2, 4.22, -0.03563435, 0.06920498, false],
+  [0, 68, -0.045701545, 0.049516942, false],
+  [3, 114.32258, -0.02313613, 0.0972028, false],
+  [4, 55, 0.07580046, -0.02744394, false],
+  [0, 61, -0.062389683, 0.030783579, false],
+  [1, -15.7, -0.041369054, 0.04475945, false],
+  [0, 76, -0.02387701, 0.073546074, false],
+  [3, 102.0243, -0.029194117, 0.059988778, false],
+  [1, -11.6, -0.017281, 0.093704395, false],
+  [2, 4.22, -0.02808528, 0.055050254, false],
+  [0, 71, -0.031475935, 0.04732119, false],
+  [1, -10, -0.012466331, 0.110916436, false],
+  [3, 114.32258, -0.017328802, 0.0758269, false],
+  [0, 76, -0.020143852, 0.06382405, false],
+  [4, 55, 0.05932471, -0.020673092, false],
+  [0, 61, -0.04966945, 0.024395688, false],
+  [2, 4.5, -0.017288333, 0.06580857, false],
+  [1, -10, -0.010546528, 0.09926285, false],
+  [0, 76, -0.017634531, 0.056986876, false],
+  [3, 102.0243, -0.021887159, 0.046127435, false],
+  [0, 56, -0.05964033, 0.015958024, false],
+  [1, -15.7, -0.028923977, 0.032032598, false],
+  [0, 79, -0.011463483, 0.074876264, false],
+  [4, 55, 0.05035323, -0.017133247, false],
+  [2, 4.22, -0.020265179, 0.040548112, false],
+  [1, -10, -0.008799092, 0.08798067, false],
+  [0, 70, -0.02400974, 0.032563753, false],
+  [3, 111.00642, -0.014113396, 0.05338729, false],
+  [1, -18.7, -0.05451209, 0.013169475, false],
+  [0, 56, -0.052008804, 0.013617538, false],
+  [0, 79, -0.009990884, 0.066975586, false],
+  [4, 51, 0.06489371, -0.010217803, false],
+  [2, 4.5, -0.01272503, 0.0497773, false],
+  [2, 3.29, -0.0633729, 0.009534334, false],
+  [1, -20.2, -0.08197443, 0.0072041997, false],
+  [1, -10, -0.007378675, 0.07813462, false],
+  [0, 79, -0.009160852, 0.0625071, false],
+  [3, 114.32258, -0.010805781, 0.051039554, false],
+  [0, 56, -0.045778595, 0.011758211, false],
+  [4, 59, 0.024072273, -0.020881325, false],
+  [0, 71, -0.017978502, 0.027346302, false],
+  [2, 3.29, -0.057258684, 0.0084350975, false],
+  [1, -10, -0.006545815, 0.07217093, false],
+  [1, -20.2, -0.07331526, 0.006270457, false],
+  [3, 102.0243, -0.014383894, 0.030970264, false],
+  [0, 79, -0.00796705, 0.055583756, false],
+  [0, 52, -0.052348923, 0.008243746, false],
+  [4, 51, 0.05309689, -0.007948394, false],
+  [2, 4.5, -0.009955354, 0.03965137, false],
+  [0, 73, -0.013575791, 0.027400663, false],
+  [3, 115.1887, -0.008576855, 0.043849092, false],
+  [1, -20.2, -0.06647871, 0.0055484334, false],
+  [2, 3.29, -0.050409473, 0.00726766, false],
+  [4, 37, 0.09702311, -0.0036311198, false],
+  [0, 52, -0.047433805, 0.0072790617, false],
+  [4, 59, 0.019709976, -0.01698996, false],
+  [0, 79, -0.0068503693, 0.04885977, false],
+  [1, -10, -0.0051682307, 0.061673164, false],
+  [3, 125.843, -0.0056906785, 0.053059556, false],
+  [0, 68, -0.016794464, 0.017939096, false],
+  [2, 3.29, -0.045508064, 0.0064724176, false],
+  [1, -20.2, -0.05976326, 0.0048476695, false],
+  [4, 37, 0.08989105, -0.0030705843, false],
+  [0, 52, -0.04268622, 0.0063886694, false],
+  [0, 79, -0.0059926845, 0.04361357, false],
+  [4, 51, 0.042728595, -0.0060351784, false],
+  [2, 4.58, -0.0070625977, 0.035767693, false],
+  [1, -18.7, -0.032243133, 0.0074460655, false],
+  [3, 125.843, -0.004968586, 0.04734024, false],
+  [2, 2.98, -0.07570007, 0.00307724, false],
+  [0, 51, -0.041741323, 0.005449946, false],
+  [4, 59, 0.016150182, -0.013850319, false],
+  [0, 79, -0.0054716384, 0.040267494, false],
+  [1, -9.3, -0.0034448013, 0.06308356, false],
+  [2, 3.29, -0.03856687, 0.0053374395, false],
+  [4, 37, 0.08119893, -0.0024801905, false],
+  [0, 68, -0.013855293, 0.014626208, false],
+  [3, 111.00642, -0.0069985846, 0.02841766, false],
+  [1, -20.2, -0.050267864, 0.0039400365, false],
+  [0, 52, -0.035419572, 0.0050846427, false],
+  [2, 4.74, -0.004775719, 0.036998857, false],
+  [4, 37, 0.07737586, -0.0022496632, false],
+  [0, 79, -0.004815915, 0.036069095, false],
+  [2, 2.98, -0.06649142, 0.0025778085, false],
+  [4, 59, 0.013933673, -0.011871978, false],
+  [3, 40.05896, 0.23677705, -0.0006782734, false],
+  [3, 125.843, -0.0040242407, 0.039678656, false],
+  [0, 71, -0.010316521, 0.015524845, false],
+  [1, -23, -0.1369087, 0.0011818401, false],
+  [1, -9.3, -0.0028271766, 0.055581093, false],
+  [2, 2.98, -0.06321722, 0.0023957975, false],
+];
+
+function scoreEchoHF({age, lvef, gls, lvmi, la}){
+  // map UI inputs to the model's feature order
+  const x = [age, gls, la/10, lvmi, lvef]; // age, AVG(=GLS), LA, LVMI, LVEF; LA: UI is mm, model thresholds are cm (FIXED 2026-09-06 — was passed unconverted, saturating all 16 LA stumps)
+  let margin = BASE_MARGIN;
+  for (const [fi, thr, leftLeaf, rightLeaf, defaultLeft] of STUMPS){
+    const v = x[fi];
+    if (v === null || v === undefined || Number.isNaN(v)){
+      margin += defaultLeft ? leftLeaf : rightLeaf;   // XGBoost missing-value default direction
+    } else {
+      margin += (v < thr) ? leftLeaf : rightLeaf;
+    }
+  }
+  return 1/(1+Math.exp(-margin));   // binary:logistic -> raw Echo-HF score in (0,1)
+}
+
+// Map raw score -> absolute 5-yr risk using Cox recalibration:  1 - S0^exp(beta*lp)
+function riskFromScore(score){
+  const p = Math.min(1-EPS, Math.max(EPS, score));
+  const lp = Math.log(p/(1-p));                 // logit(score) = linear predictor
+  const surv = Math.pow(BASELINE_S0_5YR, Math.exp(BETA*lp));
+  return 1 - surv;                              // absolute 5-yr risk
+}
+
+// Prespecified score-band tiers (match the paper's cut points)
+const TIERS = [
+  {name:"Very Low",  max:0.2, color:"var(--vlow)"},
+  {name:"Low",       max:0.4, color:"var(--low)"},
+  {name:"Medium",    max:0.6, color:"var(--med)"},
+  {name:"High",      max:0.8, color:"var(--high)"},
+  {name:"Very High", max:1.01,color:"var(--vhigh)"},
+];
+function tierFor(score){ return TIERS.find(t=>score<t.max) || TIERS[TIERS.length-1]; }
+
+// ACTIONS text removed 2026-09-06 (user decision): pure risk display, no management suggestions.
+
+const $ = id => document.getElementById(id);
+
+$("form").addEventListener("submit", e=>{
+  e.preventDefault();
+  const vals = {
+    age:+$("age").value, lvef:+$("lvef").value, gls:+$("gls").value,
+    lvmi:+$("lvmi").value, la:+$("la").value
+  };
+  for(const k in vals){ if(Number.isNaN(vals[k])){ flash(); return; } }
+
+  const score = scoreEchoHF(vals);
+  const risk  = riskFromScore(score);
+  const tier  = tierFor(score);
+  render(score, risk, tier);
+});
+
+function flash(){
+  const r=$("result"); r.className="result empty";
+  r.innerHTML="Please complete all five fields with valid numbers.";
+}
+
+function render(score, risk, tier){
+  const pct = (risk*100);
+  // No interval displayed (removed 2026-09-06): the prior "approx. range" was a hardcoded
+  // +/-25-30% cosmetic band with no statistical basis. A computable CI here would cover only
+  // recalibration sampling error, not model/transportability uncertainty, and would read as
+  // misleadingly precise.
+  const r = $("result");
+  r.className="result";
+  r.innerHTML = `
+    <div class="tier" style="color:${tier.color}">${tier.name} risk</div>
+    <div class="riskval">${pct.toFixed(1)}%</div>
+    <div class="riskci">estimated 5-year risk of symptomatic HF</div>
+    <div class="bar"><div class="mk" style="left:calc(${(score*100).toFixed(1)}% - 1.5px)"></div></div>
+    <div class="scale"><span>0</span><span>Echo-HF score ${score.toFixed(2)}</span><span>1</span></div>
+  `;
+}
+</script>
+</body>
+</html>
