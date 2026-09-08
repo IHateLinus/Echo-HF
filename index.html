@@ -111,14 +111,8 @@
     progression to symptomatic heart failure among individuals <em>without</em> current symptomatic HF,
     using variables from a standard transthoracic echocardiogram. It is a research tool for risk
     stratification and is <strong>not</strong> a diagnostic device; it does not establish that acting on
-    the estimate improves outcomes. The reported estimate is on the Kaplan-Meier scale used in the source study; as with other survival-based risk tools, it does not account for the competing risk of non-HF death. Estimates are least reliable at the extremes of the score range (in internal validation, mean predicted risk in the highest band exceeded observed incidence, 30.3% vs 19.9%) and in
-    populations that differ substantially from the development (KNUH) and validation (ARIC) cohorts.
+    the estimate improves outcomes.
     Clinical decisions remain the responsibility of the treating clinician.
-    <div class="modelnote">
-      <strong>Model provenance:</strong> this calculator runs the trained Echo-HF XGBoost model
-      (100 depth-1 trees) exactly, embedded directly in this page — no server, no external library.
-      The absolute-risk mapping uses the Cox recalibration fitted on the KNUH cohort.
-    </div>
   </div>
 </div>
 
@@ -335,6 +329,7 @@ function render(score, risk, tier){
   <p>This Agreement and any disputes that may result from, or involve, Your use of the Echo-HF Calculator shall be governed by California law, and the exclusive jurisdiction and venue for any and all actions arising out of, or brought pursuant to, this Agreement and/or Your use of the Echo-HF Calculator shall be in a court of competent jurisdiction within the County of San Diego.</p>
   <p style="text-transform:uppercase">The site content is subject to change without notice.</p>
   <p>Copyright &copy; 2026 Claudio Campagnari, Barry Greenberg, and Avi Yagil</p>
+  <p>Open source under the Apache License 2.0 (source: <a href="https://github.com/echo-hf-study/Echo-HF">github.com/echo-hf-study/Echo-HF</a>).</p>
 </section>
 </body>
 </html>
