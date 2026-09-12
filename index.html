@@ -118,23 +118,18 @@
 
 <script>
 // ============================================================================
-// Echo-HF scoring
-// ----------------------------------------------------------------------------
-// REPLACE the body of scoreEchoHF() with your exported model.
-// The function must return the raw Echo-HF score in [0,1] (the XGBoost output).
-// riskFromScore() then maps that score to absolute 5-year risk via the Cox
-// recalibration you fit on KNUH (baseline hazard). Fill in BASELINE_S0 and BETA
-// from your recalibration; the placeholder values are illustrative only.
+// Echo-HF scoring: scoreEchoHF() returns the raw Echo-HF score in [0,1] (XGBoost output);
+// riskFromScore() maps it to absolute 5-year risk via the KNUH Cox recalibration.
 // ============================================================================
 
 // ---- Cox recalibration params (from the KNUH fit) ----
-const BETA = 1.094;            // lp coefficient from Cox recalibration (verified 2026-09-05)
-const BASELINE_S0_5YR = 0.964169; // FIXED 2026-09-05: S0(1825d) at lp=0. Prior value 0.982933 was the lifelines baseline at the MEAN lp (a centering error) and understated absolute risk ~2x.
+const BETA = 1.094;            // Cox recalibration coefficient on the score logit (KNUH training subset)
+const BASELINE_S0_5YR = 0.964169; // baseline 5-year survival S0(1825 d) at score logit = 0 (KNUH training subset)
 const EPS = 1e-4;
 
 // ============================================================================
 // REAL Echo-HF model: exact XGBoost inference (100 depth-1 stumps, binary:logistic)
-// Extracted from EchoHF_xgb.json and verified to reproduce xgboost.predict to 1e-7.
+// Extracted from EchoHF_xgb.json; reproduces xgboost.predict to 1e-7.
 // Feature order: ['age','AVG','LA','LVMI','LVEF']   (AVG = global longitudinal strain)
 // ============================================================================
 const FEATS = ["age", "AVG", "LA", "LVMI", "LVEF"];
@@ -245,7 +240,7 @@ const STUMPS = [
 
 function scoreEchoHF({age, lvef, gls, lvmi, la}){
   // map UI inputs to the model's feature order
-  const x = [age, gls, la/10, lvmi, lvef]; // age, AVG(=GLS), LA, LVMI, LVEF; LA: UI is mm, model thresholds are cm (FIXED 2026-09-06 — was passed unconverted, saturating all 16 LA stumps)
+  const x = [age, gls, la/10, lvmi, lvef]; // feature order: age, GLS (multi-view average), LA diameter (UI in mm, model in cm), LVMI, LVEF
   let margin = BASE_MARGIN;
   for (const [fi, thr, leftLeaf, rightLeaf, defaultLeft] of STUMPS){
     const v = x[fi];
@@ -276,7 +271,7 @@ const TIERS = [
 ];
 function tierFor(score){ return TIERS.find(t=>score<t.max) || TIERS[TIERS.length-1]; }
 
-// ACTIONS text removed 2026-09-06 (user decision): pure risk display, no management suggestions.
+// Pure risk display; no management suggestions.
 
 const $ = id => document.getElementById(id);
 
@@ -301,10 +296,8 @@ function flash(){
 
 function render(score, risk, tier){
   const pct = (risk*100);
-  // No interval displayed (removed 2026-09-06): the prior "approx. range" was a hardcoded
-  // +/-25-30% cosmetic band with no statistical basis. A computable CI here would cover only
-  // recalibration sampling error, not model/transportability uncertainty, and would read as
-  // misleadingly precise.
+  // No interval is displayed: a computable interval would cover only recalibration sampling error,
+  // not model or transportability uncertainty, and would read as misleadingly precise.
   const r = $("result");
   r.className="result";
   r.innerHTML = `
